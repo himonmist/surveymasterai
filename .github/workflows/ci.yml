@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: surveymaster
+          POSTGRES_PASSWORD: surveymaster_dev
+          POSTGRES_DB: surveymasterai
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U surveymaster"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://surveymaster:surveymaster_dev@localhost:5432/surveymasterai
+      NEXTAUTH_SECRET: ci-secret
+      NEXTAUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      AI_PROVIDER: dev
+      PAYMENT_PROVIDER: dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @surveymasterai/database generate
+
+      - run: pnpm --filter @surveymasterai/database migrate:deploy
+
+      - run: pnpm -r typecheck
+
+      - run: pnpm --filter @surveymasterai/web build

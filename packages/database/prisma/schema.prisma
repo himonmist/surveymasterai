@@ -1,0 +1,510 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum OrgRole {
+  ORG_ADMIN
+  MANAGER
+  RESPONDENT
+}
+
+enum SurveyStatus {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  CLOSED
+  ARCHIVED
+}
+
+enum SurveyVisibility {
+  PUBLIC
+  PRIVATE
+  PASSWORD_PROTECTED
+  ORG_ONLY
+  INVITE_ONLY
+}
+
+enum QuestionType {
+  SHORT_TEXT
+  LONG_TEXT
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  DROPDOWN
+  YES_NO
+  RATING
+  STAR_RATING
+  NPS
+  LIKERT
+  MATRIX
+  RANKING
+  SLIDER
+  NUMBER
+  CURRENCY
+  DATE
+  TIME
+  DATETIME
+  EMAIL
+  PHONE
+  ADDRESS
+  FILE_UPLOAD
+  IMAGE_CHOICE
+  SIGNATURE
+  LOCATION
+  CONSENT
+  STATEMENT
+}
+
+enum LogicAction {
+  SHOW
+  HIDE
+  SKIP_TO_SECTION
+  SKIP_TO_QUESTION
+  END_SURVEY
+}
+
+enum ResponseStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  PAUSED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum AiFeature {
+  GENERATE_SURVEY
+  GENERATE_FROM_DOCUMENT
+  IMPROVE_SURVEY
+  QUALITY_CHECK
+  ANALYZE_RESPONSES
+  EXECUTIVE_REPORT
+  CHAT_ASSISTANT
+}
+
+// ---------------------------------------------------------------------------
+// Identity & Tenancy
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique
+  passwordHash  String?
+  name          String
+  avatarUrl     String?
+  isSuperAdmin  Boolean   @default(false)
+  emailVerified DateTime?
+  lastLoginAt   DateTime?
+  locale        String    @default("en")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  memberships       OrganizationMember[]
+  surveysCreated    Survey[]              @relation("SurveyCreatedBy")
+  responses         SurveyResponse[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  invitationsSent   Invitation[]          @relation("InvitationSentBy")
+  aiGenerations     AiGeneration[]
+
+  @@index([email])
+}
+
+model Organization {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String
+  slug          String   @unique
+  logoUrl       String?
+  brandColor    String   @default("#6D28D9")
+  website       String?
+  industry      String?
+  size          String?
+  customDomain  String?  @unique
+  settings      Json     @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  members       OrganizationMember[]
+  surveys       Survey[]
+  subscription  Subscription?
+  invitations   Invitation[]
+  auditLogs     AuditLog[]
+  aiGenerations AiGeneration[]
+  aiUsage       AiUsageCounter[]
+  questionBankItems QuestionBankItem[]
+
+  @@index([slug])
+}
+
+model OrganizationMember {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  userId         String   @db.Uuid
+  role           OrgRole
+  department     String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model Invitation {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  email          String
+  role           OrgRole
+  token          String           @unique
+  status         InvitationStatus @default(PENDING)
+  invitedById    String           @db.Uuid
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime         @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation("InvitationSentBy", fields: [invitedById], references: [id])
+
+  @@index([organizationId])
+  @@index([email])
+}
+
+// ---------------------------------------------------------------------------
+// Billing
+// ---------------------------------------------------------------------------
+
+model Plan {
+  id                     String   @id @default(uuid()) @db.Uuid
+  name                   String
+  slug                   String   @unique
+  description            String?
+  priceMonthlyCents      Int      @default(0)
+  priceYearlyCents       Int      @default(0)
+  currency               String   @default("USD")
+  maxSurveys             Int      @default(3)
+  maxResponsesPerMonth   Int      @default(100)
+  maxAiCreditsPerMonth   Int      @default(20)
+  maxTeamMembers         Int      @default(1)
+  maxStorageMb           Int      @default(100)
+  features               Json     @default("[]")
+  isCustom               Boolean  @default(false)
+  isActive               Boolean  @default(true)
+  sortOrder              Int      @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@index([slug])
+}
+
+model Subscription {
+  id                     String             @id @default(uuid()) @db.Uuid
+  organizationId         String             @unique @db.Uuid
+  planId                 String             @db.Uuid
+  status                 SubscriptionStatus @default(TRIALING)
+  billingCycle           String             @default("monthly")
+  paymentProvider        String             @default("dev")
+  externalCustomerId     String?
+  externalSubscriptionId String?
+  trialEndsAt            DateTime?
+  currentPeriodStart     DateTime           @default(now())
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean            @default(false)
+  canceledAt             DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         Plan         @relation(fields: [planId], references: [id])
+  invoices     Invoice[]
+
+  @@index([organizationId])
+  @@index([planId])
+}
+
+model Invoice {
+  id             String   @id @default(uuid()) @db.Uuid
+  subscriptionId String   @db.Uuid
+  amountCents    Int
+  currency       String   @default("USD")
+  status         String   @default("paid")
+  paymentProvider String  @default("dev")
+  externalInvoiceId String?
+  issuedAt       DateTime @default(now())
+  paidAt         DateTime?
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+}
+
+model AiUsageCounter {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  periodStart    DateTime
+  creditsUsed    Int      @default(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, periodStart])
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// Survey structure
+// ---------------------------------------------------------------------------
+
+model Survey {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  createdById    String           @db.Uuid
+  title          String
+  description    String?
+  status         SurveyStatus     @default(DRAFT)
+  slug           String           @unique
+  visibility     SurveyVisibility @default(PRIVATE)
+  accessPassword String?
+  allowMultipleResponses Boolean  @default(false)
+  isAnonymous    Boolean          @default(false)
+  theme          Json             @default("{}")
+  settings       Json             @default("{}")
+  welcomeScreen  Json             @default("{}")
+  thankYouScreen Json             @default("{}")
+  aiGenerated    Boolean          @default(false)
+  aiQualityScore Int?
+  currentVersion Int              @default(1)
+  responseTarget Int?
+  publishedAt    DateTime?
+  closesAt       DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User              @relation("SurveyCreatedBy", fields: [createdById], references: [id])
+  sections     SurveySection[]
+  responses    SurveyResponse[]
+  aiGenerations AiGeneration[]
+
+  @@index([organizationId])
+  @@index([slug])
+  @@index([status])
+}
+
+model SurveySection {
+  id          String  @id @default(uuid()) @db.Uuid
+  surveyId    String  @db.Uuid
+  title       String
+  description String?
+  order       Int     @default(0)
+
+  survey    Survey     @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  questions Question[]
+
+  @@index([surveyId])
+}
+
+model Question {
+  id            String       @id @default(uuid()) @db.Uuid
+  sectionId     String       @db.Uuid
+  type          QuestionType
+  title         String
+  description   String?
+  helpText      String?
+  placeholder   String?
+  required      Boolean      @default(false)
+  order         Int          @default(0)
+  config        Json         @default("{}")
+  tags          String[]     @default([])
+
+  section SurveySection      @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  options QuestionOption[]
+  logic   QuestionLogic[]
+  answers ResponseAnswer[]
+
+  @@index([sectionId])
+}
+
+model QuestionOption {
+  id         String @id @default(uuid()) @db.Uuid
+  questionId String @db.Uuid
+  label      String
+  value      String
+  order      Int    @default(0)
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+}
+
+model QuestionLogic {
+  id         String      @id @default(uuid()) @db.Uuid
+  questionId String      @db.Uuid
+  conditions Json
+  action     LogicAction
+  targetId   String?     @db.Uuid
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+}
+
+// ---------------------------------------------------------------------------
+// Responses
+// ---------------------------------------------------------------------------
+
+model SurveyResponse {
+  id             String         @id @default(uuid()) @db.Uuid
+  surveyId       String         @db.Uuid
+  respondentId   String?        @db.Uuid
+  anonymousId    String?
+  status         ResponseStatus @default(IN_PROGRESS)
+  startedAt      DateTime       @default(now())
+  completedAt    DateTime?
+  completionTimeSeconds Int?
+  ipAddress      String?
+  userAgent      String?
+  metadata       Json           @default("{}")
+
+  survey     Survey           @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  respondent User?            @relation(fields: [respondentId], references: [id])
+  answers    ResponseAnswer[]
+
+  @@index([surveyId])
+  @@index([respondentId])
+  @@index([status])
+}
+
+model ResponseAnswer {
+  id         String  @id @default(uuid()) @db.Uuid
+  responseId String  @db.Uuid
+  questionId String  @db.Uuid
+  value      Json
+  textValue  String?
+
+  response SurveyResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  question Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([responseId, questionId])
+  @@index([questionId])
+}
+
+// ---------------------------------------------------------------------------
+// Templates & Question Bank
+// ---------------------------------------------------------------------------
+
+model SurveyTemplate {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String
+  category    String
+  description String?
+  structure   Json
+  isPublic    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([category])
+}
+
+model QuestionBankItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String?  @db.Uuid
+  category       String
+  title          String
+  type           QuestionType
+  config         Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([category])
+  @@index([organizationId])
+}
+
+// ---------------------------------------------------------------------------
+// AI
+// ---------------------------------------------------------------------------
+
+model AiGeneration {
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   String    @db.Uuid
+  userId           String    @db.Uuid
+  surveyId         String?   @db.Uuid
+  feature          AiFeature
+  provider         String
+  promptSummary    String?
+  creditsUsed      Int       @default(1)
+  promptTokens     Int       @default(0)
+  completionTokens Int       @default(0)
+  createdAt        DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+  survey       Survey?      @relation(fields: [surveyId], references: [id])
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Platform
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String?  @db.Uuid
+  userId         String?  @db.Uuid
+  action         String
+  entityType     String
+  entityId       String?
+  metadata       Json     @default("{}")
+  ipAddress      String?
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  type      String
+  title     String
+  body      String?
+  data      Json     @default("{}")
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+}
