@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { Download } from "lucide-react";
 import { requireOrgContext } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { getSurveyAggregates } from "@/lib/analytics";
 import { formatPercent } from "@/lib/format";
+import { can } from "@surveymasterai/auth";
 import { QuestionChart } from "@/components/dashboard/question-chart";
 import { AiInsightsPanel } from "@/components/dashboard/ai-insights-panel";
 
@@ -11,6 +13,7 @@ export default async function SurveyAnalyticsPage({ params }: { params: { id: st
   const { org } = await requireOrgContext();
   const survey = await prisma.survey.findUnique({ where: { id: params.id } });
   if (!survey || survey.organizationId !== org.organizationId) notFound();
+  if (!can(org.role, "survey:view_analytics")) notFound();
 
   const aggregates = await getSurveyAggregates(params.id);
 
@@ -19,7 +22,12 @@ export default async function SurveyAnalyticsPage({ params }: { params: { id: st
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{survey.title}</h1>
-          <p className="mt-1 text-sm text-gray-500">Analytics</p>
+          <div className="mt-1 flex items-center gap-3 text-sm text-gray-500">
+            <span className="font-medium text-brand-700">Analytics</span>
+            <Link href={`/dashboard/surveys/${survey.id}/responses`} className="hover:text-brand-700">
+              Responses
+            </Link>
+          </div>
         </div>
         <a href={`/api/v1/surveys/${survey.id}/export`} className="btn-secondary">
           <Download className="h-4 w-4" />

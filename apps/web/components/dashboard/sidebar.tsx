@@ -12,6 +12,7 @@ import {
   CreditCard,
   ClipboardList,
   ShieldCheck,
+  CheckSquare,
 } from "lucide-react";
 import type { OrgRole } from "@surveymasterai/database";
 
@@ -26,6 +27,7 @@ const NAV_BY_ROLE: Record<OrgRole, NavItem[]> = {
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/dashboard/surveys", label: "Surveys", icon: BarChart3 },
     { href: "/dashboard/templates", label: "Templates", icon: FileText },
+    { href: "/dashboard/my-responses", label: "My Responses", icon: CheckSquare },
     { href: "/dashboard/team", label: "Team", icon: Users },
     { href: "/dashboard/subscription", label: "Subscription", icon: CreditCard },
     { href: "/dashboard/settings", label: "Settings", icon: Settings },
@@ -35,10 +37,12 @@ const NAV_BY_ROLE: Record<OrgRole, NavItem[]> = {
     { href: "/dashboard/surveys", label: "My Surveys", icon: BarChart3 },
     { href: "/dashboard/surveys/new", label: "Create Survey", icon: Sparkles },
     { href: "/dashboard/templates", label: "Templates", icon: FileText },
+    { href: "/dashboard/my-responses", label: "My Responses", icon: CheckSquare },
   ],
   RESPONDENT: [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/dashboard/surveys", label: "Assigned Surveys", icon: ClipboardList },
+    { href: "/dashboard/my-responses", label: "My Responses", icon: CheckSquare },
   ],
 };
 
