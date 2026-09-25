@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { Plus, Eye, Sparkles, ShieldCheck, Loader2 } from "lucide-react";
 import { SectionEditor } from "./section-editor";
@@ -26,6 +26,7 @@ export function SurveyBuilder({ initialSurvey }: { initialSurvey: BuilderSurvey 
   const [title, setTitle] = useState(initialSurvey.title);
   const [saving, setSaving] = useState(false);
   const [checkingQuality, setCheckingQuality] = useState(false);
+  const questionRequestIds = useRef<Record<string, number>>({});
 
   async function refresh() {
     const data = await api<{ survey: BuilderSurvey }>(`/api/v1/surveys/${survey.id}`);
@@ -71,10 +72,41 @@ export function SurveyBuilder({ initialSurvey }: { initialSurvey: BuilderSurvey 
   }
 
   async function updateQuestion(questionId: string, payload: QuestionUpdatePayload) {
+    // Apply the change locally first. QuestionEditor derives things like the
+    // next option's label from the current option count, so if we waited for
+    // the PATCH round-trip before updating state, firing it again quickly
+    // (e.g. clicking "Add option" repeatedly) would read the same stale
+    // count each time and produce duplicate options.
+    const { options, ...rest } = payload;
+    setSurvey((s) => ({
+      ...s,
+      sections: s.sections.map((sec) => ({
+        ...sec,
+        questions: sec.questions.map((q) =>
+          q.id === questionId
+            ? {
+                ...q,
+                ...rest,
+                options: options ? options.map((o, i) => ({ id: q.options[i]?.id ?? "", ...o })) : q.options,
+              }
+            : q,
+        ),
+      })),
+    }));
+
+    const requestId = (questionRequestIds.current[questionId] ?? 0) + 1;
+    questionRequestIds.current[questionId] = requestId;
+
     const { question } = await api<{ question: BuilderSurvey["sections"][number]["questions"][number] }>(
       `/api/v1/surveys/${survey.id}/questions/${questionId}`,
       { method: "PATCH", body: JSON.stringify(payload) },
     );
+
+    // A newer edit to this question has since been made (and its own
+    // request is in flight or already applied) — don't let this older
+    // response clobber it.
+    if (questionRequestIds.current[questionId] !== requestId) return;
+
     setSurvey((s) => ({
       ...s,
       sections: s.sections.map((sec) => ({

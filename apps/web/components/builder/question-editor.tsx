@@ -15,6 +15,39 @@ import type { BuilderLogic, BuilderOption, BuilderQuestion } from "./types";
 
 const NUMERIC_CONFIG_TYPES: QuestionType[] = ["RATING", "NUMBER", "SLIDER"];
 
+// Commits on blur rather than on every keystroke, same as the question
+// title/description fields below. Options previously updated on every
+// onChange, which sent a full delete-and-recreate PATCH per character typed
+// — under real-world typing speed those requests overlap, and since the
+// server has no locking around the delete+recreate, overlapping requests
+// can each insert their own copy of the option list, ballooning it into
+// hundreds of duplicate rows instead of settling on the final text.
+function OptionInput({
+  label: committedLabel,
+  onCommit,
+  onRemove,
+}: {
+  label: string;
+  onCommit: (label: string) => void;
+  onRemove: () => void;
+}) {
+  const [label, setLabel] = useState(committedLabel);
+
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        onBlur={() => label !== committedLabel && onCommit(label)}
+        className="input py-1 text-xs"
+      />
+      <button type="button" onClick={onRemove} className="text-gray-300 hover:text-red-600">
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
 export interface QuestionUpdatePayload {
   type?: QuestionType;
   title?: string;
@@ -113,16 +146,12 @@ export function QuestionEditor({
           {requiresOptions(question.type) && (
             <div className="mt-3 space-y-1.5">
               {question.options.map((option, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <input
-                    value={option.label}
-                    onChange={(e) => updateOption(i, { label: e.target.value, value: e.target.value.toLowerCase().replace(/\s+/g, "_") })}
-                    className="input py-1 text-xs"
-                  />
-                  <button type="button" onClick={() => removeOption(i)} className="text-gray-300 hover:text-red-600">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                <OptionInput
+                  key={i}
+                  label={option.label}
+                  onCommit={(label) => updateOption(i, { label, value: label.toLowerCase().replace(/\s+/g, "_") })}
+                  onRemove={() => removeOption(i)}
+                />
               ))}
               <button type="button" onClick={addOption} className="btn-ghost py-1 text-xs">
                 <Plus className="h-3.5 w-3.5" />
