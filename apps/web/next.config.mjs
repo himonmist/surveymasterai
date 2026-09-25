@@ -23,6 +23,21 @@ const nextConfig = {
   ],
   experimental: {
     serverComponentsExternalPackages: ["@prisma/client"],
+    // outputFileTracingRoot alone isn't enough: Prisma's query engine
+    // binary is loaded via a dynamically-constructed path at runtime, not a
+    // static require()/import, so Next's file tracer (@vercel/nft) can
+    // never discover it through normal dependency analysis. It has to be
+    // force-included explicitly. In Next 14.2, this option only takes
+    // effect under `experimental` (it wasn't promoted to top-level until
+    // Next 15). Absolute paths sidestep any ambiguity about what the glob
+    // is resolved relative to.
+    outputFileTracingIncludes: {
+      "/api/**/*": [
+        path.join(__dirname, "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**/*"),
+        path.join(__dirname, "../../node_modules/.prisma/client/**/*"),
+        path.join(__dirname, "./node_modules/.prisma/client/**/*"),
+      ],
+    },
   },
 };
 
