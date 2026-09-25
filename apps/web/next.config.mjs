@@ -34,8 +34,14 @@ const nextConfig = {
     // directory containing next.config.mjs using path.join, which (unlike
     // path.resolve) does not reset to root for an absolute second argument
     // — an absolute pattern here gets silently double-prefixed instead.
+    // Applies to every route, not just /api/**: dynamic pages (e.g.
+    // /dashboard/**, which query Prisma directly in Server Components) are
+    // their own serverless functions too and need the same fix. Static
+    // pages don't need this — they render at build time, when the engine
+    // is freshly generated and always present — but there's no harm in
+    // over-including here.
     outputFileTracingIncludes: {
-      "/api/**/*": [
+      "/**/*": [
         "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**/*",
         "../../node_modules/.prisma/client/**/*",
         "./node_modules/.prisma/client/**/*",
