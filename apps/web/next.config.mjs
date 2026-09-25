@@ -29,13 +29,16 @@ const nextConfig = {
     // never discover it through normal dependency analysis. It has to be
     // force-included explicitly. In Next 14.2, this option only takes
     // effect under `experimental` (it wasn't promoted to top-level until
-    // Next 15). Absolute paths sidestep any ambiguity about what the glob
-    // is resolved relative to.
+    // Next 15). These MUST be plain relative strings, not path.join()'d
+    // absolute paths: Vercel's build re-joins each pattern onto the
+    // directory containing next.config.mjs using path.join, which (unlike
+    // path.resolve) does not reset to root for an absolute second argument
+    // — an absolute pattern here gets silently double-prefixed instead.
     outputFileTracingIncludes: {
       "/api/**/*": [
-        path.join(__dirname, "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**/*"),
-        path.join(__dirname, "../../node_modules/.prisma/client/**/*"),
-        path.join(__dirname, "./node_modules/.prisma/client/**/*"),
+        "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**/*",
+        "../../node_modules/.prisma/client/**/*",
+        "./node_modules/.prisma/client/**/*",
       ],
     },
   },
