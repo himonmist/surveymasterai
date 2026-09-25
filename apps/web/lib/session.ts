@@ -48,7 +48,12 @@ export async function getOrgContext(userId: string): Promise<OrgContext | null> 
 export async function requireOrgContext() {
   const user = await requireUser();
   const org = await getOrgContext(user.id);
-  if (!org) redirect("/onboarding");
+  if (!org) {
+    // Platform Super Admins operate at the platform level and typically
+    // don't belong to any organization — send them to the admin console
+    // instead of the "you're not part of an org" dead end.
+    redirect(user.isSuperAdmin ? "/admin" : "/onboarding");
+  }
   return { user, org };
 }
 
