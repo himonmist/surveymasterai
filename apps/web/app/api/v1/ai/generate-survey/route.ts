@@ -6,7 +6,7 @@ import { assertWithinAiCreditLimit, consumeAiCredits } from "@/lib/limits";
 import { prisma } from "@/lib/db";
 
 const schema = z.object({
-  prompt: z.string().min(3).max(2000),
+  prompt: z.string().min(3).max(4000),
 });
 
 export async function POST(request: Request) {
