@@ -8,10 +8,12 @@ export function QuestionInputField({
   question,
   value,
   onChange,
+  disabled = false,
 }: {
   question: QuestionInput;
   value: AnswerValue;
   onChange: (value: AnswerValue) => void;
+  disabled?: boolean;
 }) {
   switch (question.type) {
     case "STATEMENT":
@@ -24,11 +26,12 @@ export function QuestionInputField({
     case "SIGNATURE":
       return (
         <input
-          className="input"
+          className="input disabled:bg-gray-50 disabled:text-gray-500"
           type={question.type === "EMAIL" ? "email" : "text"}
           placeholder={question.placeholder ?? (question.type === "SIGNATURE" ? "Type your full name to sign" : undefined)}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
         />
       );
 
@@ -58,12 +61,26 @@ export function QuestionInputField({
       );
 
     case "DATE":
-      return <input className="input" type="date" value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} />;
+      return (
+        <input
+          className="input disabled:bg-gray-50 disabled:text-gray-500"
+          type="date"
+          value={(value as string) ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+        />
+      );
     case "TIME":
       return <input className="input" type="time" value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} />;
     case "DATETIME":
       return (
-        <input className="input" type="datetime-local" value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} />
+        <input
+          className="input disabled:bg-gray-50 disabled:text-gray-500"
+          type="datetime-local"
+          value={(value as string) ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+        />
       );
 
     case "YES_NO":

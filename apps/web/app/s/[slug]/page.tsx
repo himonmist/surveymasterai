@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getPublishedSurveyBySlug } from "@/lib/public-survey";
 import { surveyToStructure } from "@/lib/survey-service";
+import { getCurrentSession } from "@/lib/session";
 import { SurveyRespondent } from "@/components/respondent/survey-respondent";
 import { PasswordGate } from "./password-gate";
 
@@ -22,6 +23,7 @@ export default async function PublicSurveyPage({
   }
 
   const structure = surveyToStructure(survey);
+  const session = await getCurrentSession();
 
   return (
     <SurveyRespondent
@@ -30,6 +32,8 @@ export default async function PublicSurveyPage({
       description={survey.description}
       structure={structure}
       preview={isPreview}
+      respondentName={session?.user?.name}
+      respondentEmail={session?.user?.email}
     />
   );
 }

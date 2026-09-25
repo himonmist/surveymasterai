@@ -14,6 +14,8 @@ import { LogicEditor } from "./logic-editor";
 import type { BuilderLogic, BuilderOption, BuilderQuestion } from "./types";
 
 const NUMERIC_CONFIG_TYPES: QuestionType[] = ["RATING", "NUMBER", "SLIDER"];
+const NAME_AUTOFILL_TYPES: QuestionType[] = ["SHORT_TEXT", "EMAIL"];
+const DATE_AUTOFILL_TYPES: QuestionType[] = ["DATE", "DATETIME"];
 
 // Commits on blur rather than on every keystroke, same as the question
 // title/description fields below. Options previously updated on every
@@ -141,6 +143,33 @@ export function QuestionEditor({
               rows={2}
               placeholder="Description / help text (optional)"
             />
+          )}
+
+          {expanded && (NAME_AUTOFILL_TYPES.includes(question.type) || DATE_AUTOFILL_TYPES.includes(question.type)) && (
+            <div className="mt-3">
+              <label className="text-xs text-gray-400">Auto-fill</label>
+              <select
+                className="input py-1 text-xs"
+                value={(question.config.autoFill as string) ?? ""}
+                onChange={(e) => {
+                  const rest = { ...question.config };
+                  delete rest.autoFill;
+                  onUpdate({ config: e.target.value ? { ...rest, autoFill: e.target.value } : rest });
+                }}
+              >
+                <option value="">None — respondent fills this in</option>
+                {NAME_AUTOFILL_TYPES.includes(question.type) && (
+                  <>
+                    <option value="RESPONDENT_NAME">Logged-in respondent&apos;s name</option>
+                    <option value="RESPONDENT_EMAIL">Logged-in respondent&apos;s email</option>
+                  </>
+                )}
+                {DATE_AUTOFILL_TYPES.includes(question.type) && <option value="CURRENT_DATE">Current date</option>}
+              </select>
+              <p className="mt-1 text-xs text-gray-400">
+                When set, this is pre-filled and locked for respondents who are logged in.
+              </p>
+            </div>
           )}
 
           {requiresOptions(question.type) && (

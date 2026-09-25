@@ -13,12 +13,60 @@ interface Props {
   description?: string | null;
   structure: SurveyStructureInput;
   preview?: boolean;
+  respondentName?: string | null;
+  respondentEmail?: string | null;
 }
 
-export function SurveyRespondent({ slug, title, description, structure, preview = false }: Props) {
+/** Questions can be marked (in the builder) to auto-fill from the logged-in session or today's date instead of asking the respondent to type them. */
+function computeAutoFillAnswers(
+  structure: SurveyStructureInput,
+  respondentName?: string | null,
+  respondentEmail?: string | null,
+): AnswerMap {
+  const result: AnswerMap = {};
+  for (const section of structure.sections) {
+    for (const question of section.questions) {
+      const autoFill = question.config?.autoFill as string | undefined;
+      if (!question.id || !autoFill) continue;
+      if (autoFill === "RESPONDENT_NAME" && respondentName) result[question.id] = respondentName;
+      else if (autoFill === "RESPONDENT_EMAIL" && respondentEmail) result[question.id] = respondentEmail;
+      else if (autoFill === "CURRENT_DATE") {
+        result[question.id] = question.type === "DATETIME" ? new Date().toISOString().slice(0, 16) : new Date().toISOString().slice(0, 10);
+      }
+    }
+  }
+  return result;
+}
+
+function isLockedByAutoFill(
+  question: FlatQuestion,
+  respondentName?: string | null,
+  respondentEmail?: string | null,
+): boolean {
+  const autoFill = question.config?.autoFill as string | undefined;
+  if (!autoFill) return false;
+  if (autoFill === "CURRENT_DATE") return true;
+  if (autoFill === "RESPONDENT_NAME") return Boolean(respondentName);
+  if (autoFill === "RESPONDENT_EMAIL") return Boolean(respondentEmail);
+  return false;
+}
+
+export function SurveyRespondent({
+  slug,
+  title,
+  description,
+  structure,
+  preview = false,
+  respondentName,
+  respondentEmail,
+}: Props) {
   const router = useRouter();
   const [started, setStarted] = useState(false);
-  const [answers, setAnswers] = useState<AnswerMap>({});
+  const autoFillAnswers = useMemo(
+    () => computeAutoFillAnswers(structure, respondentName, respondentEmail),
+    [structure, respondentName, respondentEmail],
+  );
+  const [answers, setAnswers] = useState<AnswerMap>(() => autoFillAnswers);
   const [responseId, setResponseId] = useState<string | undefined>();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -34,7 +82,7 @@ export function SurveyRespondent({ slug, title, description, structure, preview 
       try {
         const parsed = JSON.parse(saved);
         setResponseId(parsed.responseId);
-        setAnswers(parsed.answers ?? {});
+        setAnswers({ ...(parsed.answers ?? {}), ...autoFillAnswers });
       } catch {
         // ignore corrupt local state
       }
@@ -133,7 +181,12 @@ export function SurveyRespondent({ slug, title, description, structure, preview 
             </label>
             {question.description && <p className="mt-1 text-xs text-gray-500">{question.description}</p>}
             <div className="mt-3">
-              <QuestionInputField question={question} value={answers[question.id!]} onChange={(v) => updateAnswer(question.id!, v)} />
+              <QuestionInputField
+                question={question}
+                value={answers[question.id!]}
+                onChange={(v) => updateAnswer(question.id!, v)}
+                disabled={isLockedByAutoFill(question, respondentName, respondentEmail)}
+              />
             </div>
             {errors[question.id!] && <p className="mt-2 text-xs text-red-600">{errors[question.id!]}</p>}
           </div>

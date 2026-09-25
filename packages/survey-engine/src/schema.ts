@@ -46,6 +46,10 @@ export const questionConfigSchema = z
     randomizeOptions: z.boolean().optional(),
     allowedFileTypes: z.array(z.string()).optional(),
     maxFileSizeMb: z.number().optional(),
+    // When set, the respondent flow pre-fills this question from the
+    // logged-in session (or the current date) and disables editing, instead
+    // of asking the respondent to type it in by hand.
+    autoFill: z.enum(["RESPONDENT_NAME", "RESPONDENT_EMAIL", "CURRENT_DATE"]).optional(),
   })
   .partial()
   .default({});
