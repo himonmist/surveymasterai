@@ -6,10 +6,31 @@ export type PublicSurveyError = { status: number; message: string };
 
 export async function getPublishedSurveyBySlug(
   slug: string,
+  opts: { preview?: boolean } = {},
 ): Promise<{ survey: FullSurvey } | { error: PublicSurveyError }> {
   const survey = await prisma.survey.findUnique({ where: { slug }, include: fullSurveyInclude });
 
   if (!survey) return { error: { status: 404, message: "Survey not found." } };
+
+  if (opts.preview) {
+    // Preview links are opened from the builder before a survey is
+    // published, so the usual status/visibility gates below don't apply —
+    // only org members may preview a survey that belongs to their org.
+    const session = await getCurrentSession();
+    if (!session?.user) {
+      return { error: { status: 401, message: "Sign in required to preview this survey." } };
+    }
+    if (!session.user.isSuperAdmin) {
+      const membership = await prisma.organizationMember.findUnique({
+        where: { organizationId_userId: { organizationId: survey.organizationId, userId: session.user.id } },
+      });
+      if (!membership?.isActive) {
+        return { error: { status: 403, message: "You don't have access to preview this survey." } };
+      }
+    }
+    return { survey };
+  }
+
   if (survey.status === "CLOSED" || survey.status === "ARCHIVED") {
     return { error: { status: 410, message: "This survey is no longer accepting responses." } };
   }

@@ -12,9 +12,10 @@ interface Props {
   title: string;
   description?: string | null;
   structure: SurveyStructureInput;
+  preview?: boolean;
 }
 
-export function SurveyRespondent({ slug, title, description, structure }: Props) {
+export function SurveyRespondent({ slug, title, description, structure, preview = false }: Props) {
   const router = useRouter();
   const [started, setStarted] = useState(false);
   const [answers, setAnswers] = useState<AnswerMap>({});
@@ -27,6 +28,7 @@ export function SurveyRespondent({ slug, title, description, structure }: Props)
   const storageKey = `smai_response_${slug}`;
 
   useEffect(() => {
+    if (preview) return;
     const saved = localStorage.getItem(storageKey);
     if (saved) {
       try {
@@ -56,6 +58,7 @@ export function SurveyRespondent({ slug, title, description, structure }: Props)
   }
 
   async function autosave(currentAnswers: AnswerMap) {
+    if (preview) return;
     const res = await fetch(`/api/v1/public/surveys/${slug}/responses`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -76,6 +79,11 @@ export function SurveyRespondent({ slug, title, description, structure }: Props)
       setErrors(map);
       const firstEl = document.getElementById(`q-${validationErrors[0]!.questionId}`);
       firstEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    if (preview) {
+      router.push(`/s/${slug}/thank-you?preview=1`);
       return;
     }
 

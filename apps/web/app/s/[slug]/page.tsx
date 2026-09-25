@@ -9,20 +9,27 @@ export default async function PublicSurveyPage({
   searchParams,
 }: {
   params: { slug: string };
-  searchParams: { password?: string };
+  searchParams: { password?: string; preview?: string };
 }) {
-  const result = await getPublishedSurveyBySlug(params.slug);
+  const isPreview = searchParams.preview === "1";
+  const result = await getPublishedSurveyBySlug(params.slug, { preview: isPreview });
   if ("error" in result) notFound();
 
   const { survey } = result;
 
-  if (survey.visibility === "PASSWORD_PROTECTED" && searchParams.password !== survey.accessPassword) {
+  if (!isPreview && survey.visibility === "PASSWORD_PROTECTED" && searchParams.password !== survey.accessPassword) {
     return <PasswordGate slug={survey.slug} incorrect={Boolean(searchParams.password)} />;
   }
 
   const structure = surveyToStructure(survey);
 
   return (
-    <SurveyRespondent slug={survey.slug} title={survey.title} description={survey.description} structure={structure} />
+    <SurveyRespondent
+      slug={survey.slug}
+      title={survey.title}
+      description={survey.description}
+      structure={structure}
+      preview={isPreview}
+    />
   );
 }
