@@ -39,13 +39,25 @@ export default async function SurveysPage({ searchParams }: { searchParams: { st
       )
     : [];
 
+  // A respondent (e.g. a field surveyor) can legitimately submit the same
+  // survey many times — once per visit/entry — so this tracks a count per
+  // survey plus any not-yet-submitted draft to resume, not a single
+  // "have they responded" flag that would block further entries.
   const myResponses = canViewAnalytics
     ? []
     : await prisma.surveyResponse.findMany({
         where: { respondentId: user.id, surveyId: { in: surveys.map((s) => s.id) } },
         select: { surveyId: true, id: true, status: true },
+        orderBy: { startedAt: "desc" },
       });
-  const myResponseBySurvey = new Map(myResponses.map((r) => [r.surveyId, r]));
+  const myResponseCountBySurvey = new Map<string, number>();
+  const myDraftResponseBySurvey = new Map<string, string>();
+  for (const r of myResponses) {
+    myResponseCountBySurvey.set(r.surveyId, (myResponseCountBySurvey.get(r.surveyId) ?? 0) + 1);
+    if (r.status === "IN_PROGRESS" && !myDraftResponseBySurvey.has(r.surveyId)) {
+      myDraftResponseBySurvey.set(r.surveyId, r.id);
+    }
+  }
 
   const tabs = [
     { key: "all", label: "All" },
@@ -122,24 +134,21 @@ export default async function SurveysPage({ searchParams }: { searchParams: { st
                     Open
                   </Link>
                 </>
-              ) : myResponseBySurvey.get(survey.id) ? (
-                <>
-                  <span className="text-sm text-gray-400">
-                    {myResponseBySurvey.get(survey.id)!.status === "COMPLETED" ? "You've responded" : "In progress"}
-                  </span>
-                  <Link href={`/dashboard/my-responses/${myResponseBySurvey.get(survey.id)!.id}`} className="btn-ghost">
-                    View my answers
-                  </Link>
-                  {myResponseBySurvey.get(survey.id)!.status !== "COMPLETED" && (
-                    <a href={`/s/${survey.slug}`} className="btn-secondary">
-                      Continue
-                    </a>
-                  )}
-                </>
               ) : (
-                <a href={`/s/${survey.slug}`} className="btn-primary">
-                  Respond
-                </a>
+                <>
+                  {(myResponseCountBySurvey.get(survey.id) ?? 0) > 0 && (
+                    <Link href="/dashboard/my-responses" className="text-sm text-gray-400 hover:text-gray-600">
+                      {myResponseCountBySurvey.get(survey.id)} of your entries
+                    </Link>
+                  )}
+                  <a href={`/s/${survey.slug}`} className="btn-primary">
+                    {myDraftResponseBySurvey.has(survey.id)
+                      ? "Continue"
+                      : (myResponseCountBySurvey.get(survey.id) ?? 0) > 0
+                        ? "Respond again"
+                        : "Respond"}
+                  </a>
+                </>
               )}
             </div>
           </div>
