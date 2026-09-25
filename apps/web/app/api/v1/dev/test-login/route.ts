@@ -10,26 +10,22 @@ import { verifyPassword } from "@surveymasterai/auth";
  * disabled (403) whenever that env var isn't set. Never returns the actual
  * password hash or password.
  */
-export async function POST(request: Request) {
+async function diagnose(providedSecret: string | null, email: string | null, password: string | null) {
   const configuredSecret = process.env.SEED_SECRET;
   if (!configuredSecret) {
     return NextResponse.json({ error: "Diagnostics are not enabled in this environment." }, { status: 403 });
   }
-
-  const provided = request.headers.get("x-seed-secret");
-  if (provided !== configuredSecret) {
+  if (providedSecret !== configuredSecret) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-
-  const body = await request.json().catch(() => null);
-  if (!body?.email || !body?.password) {
+  if (!email || !password) {
     return NextResponse.json({ error: "email and password are required" }, { status: 422 });
   }
 
   let user: Awaited<ReturnType<typeof prisma.user.findUnique>> | null = null;
   let findError: string | null = null;
   try {
-    user = await prisma.user.findUnique({ where: { email: String(body.email).toLowerCase() } });
+    user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   } catch (e) {
     findError = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
   }
@@ -38,7 +34,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ step: "findUnique", error: findError });
   }
   if (!user) {
-    return NextResponse.json({ step: "findUnique", found: false, queriedEmail: String(body.email).toLowerCase() });
+    return NextResponse.json({ step: "findUnique", found: false, queriedEmail: email.toLowerCase() });
   }
 
   const hasHash = Boolean(user.passwordHash);
@@ -46,7 +42,7 @@ export async function POST(request: Request) {
   let compareError: string | null = null;
   if (user.passwordHash) {
     try {
-      valid = await verifyPassword(user.passwordHash, String(body.password));
+      valid = await verifyPassword(user.passwordHash, password);
     } catch (e) {
       compareError = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
     }
@@ -59,9 +55,19 @@ export async function POST(request: Request) {
     hasHash,
     hashPrefix: user.passwordHash?.slice(0, 7) ?? null,
     hashLength: user.passwordHash?.length ?? 0,
-    passwordLength: String(body.password).length,
+    passwordLength: password.length,
     valid,
     compareError,
     isSuperAdmin: user.isSuperAdmin,
   });
+}
+
+export async function POST(request: Request) {
+  const body = await request.json().catch(() => null);
+  return diagnose(request.headers.get("x-seed-secret"), body?.email ?? null, body?.password ?? null);
+}
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  return diagnose(searchParams.get("secret"), searchParams.get("email"), searchParams.get("password"));
 }
