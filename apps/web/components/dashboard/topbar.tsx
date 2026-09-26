@@ -1,10 +1,18 @@
 "use client";
 
 import { signOut } from "next-auth/react";
-import { Search, Bell, LogOut } from "lucide-react";
+import { Search, Bell, LogOut, Menu } from "lucide-react";
 import { useState } from "react";
 
-export function DashboardTopbar({ userName, userEmail }: { userName: string; userEmail: string }) {
+export function DashboardTopbar({
+  userName,
+  userEmail,
+  onMenuClick,
+}: {
+  userName: string;
+  userEmail: string;
+  onMenuClick?: () => void;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const initials = userName
     .split(" ")
@@ -14,7 +22,14 @@ export function DashboardTopbar({ userName, userEmail }: { userName: string; use
     .toUpperCase();
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6">
+    <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 sm:px-6">
+      <button
+        onClick={onMenuClick}
+        className="mr-2 rounded-lg p-2 text-gray-500 hover:bg-gray-100 lg:hidden"
+        aria-label="Open menu"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
       <div className="relative hidden max-w-sm flex-1 sm:block">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
         <input placeholder="Search surveys, users..." className="input pl-9" />
